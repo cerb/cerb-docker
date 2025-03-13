@@ -1,0 +1,65 @@
+name: cerb-docker
+
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "${CERB_PORT:-8080}:80"
+    depends_on:
+      - php-fpm
+    environment:
+      NGINX_HOST: localhost
+    networks:
+      - backend
+    volumes:
+      - ./nginx/cerb.conf.template:/etc/nginx/templates/cerb.conf.template
+      - ./nginx/cerb.install.${CERB_INSTALL:-no}.conf:/etc/nginx/cerb.install.conf
+      #- ./nginx/favicon.ico:/usr/share/nginx/html/favicon.ico:ro
+  php-fpm:
+    image: cerb/cerb:${CERB_VERSION:-latest}
+    depends_on:
+      - mysql
+      #- redis
+    networks:
+      - backend
+    environment:
+      CERB_AUTHORIZED_IPS: ${CERB_AUTHORIZED_IPS}
+      CERB_DB_HOST: ${MYSQL_HOST:-mysql}
+      CERB_DB_NAME: ${MYSQL_DATABASE:-cerb}
+      CERB_DB_USER: ${MYSQL_USER:-cerb}
+      CERB_DB_PASS: ${MYSQL_PASSWORD:-s3cr3t}
+      CERB_INSTALL: ${CERB_INSTALL:-}
+      CERB_PROXY_HOST: ${CERB_PROXY_HOST:-}
+      CERB_PROXY_PORT: ${CERB_PROXY_PORT:-}
+    volumes:
+      - storage:/var/www/html/storage
+      - ./php-fpm/www.conf:/usr/local/etc/php-fpm.d/z-cerb.conf
+  mysql:
+    image: mysql:8.4
+    command: >
+      --mysql-native-password=ON
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cerb}
+      MYSQL_USER: ${MYSQL_USER:-cerb}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-s3cr3t}
+      MYSQL_RANDOM_ROOT_PASSWORD: yes
+    networks:
+      - backend
+    volumes:
+      - db:/var/lib/mysql
+  #redis:
+  #  image: redis:latest
+  #  networks:
+  #   - backend
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: ${CERB_SUBNET:-172.16.1.0/24}
+
+volumes:
+  db:
+  storage:

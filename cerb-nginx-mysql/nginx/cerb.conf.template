@@ -1,0 +1,39 @@
+server {
+    listen 80;
+    server_name ${NGINX_HOST};
+
+    root /usr/share/nginx/html;
+    index index.php;
+
+    client_max_body_size 32m;
+    charset utf-8;
+
+    #location = /favicon.ico {
+    #    allow all;
+    #    expires 1d;
+    #    access_log off;
+    #    add_header Cache-Control "public";
+    #}
+
+    # Only allow PHP for two filesfavicon.ico
+    location ~ ^/(index|ajax)\.php$ {
+        root /var/www/html;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass   php-fpm:9000;
+        fastcgi_index  index.php;
+        include        fastcgi_params;
+        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+    }
+
+    include /etc/nginx/cerb.install.conf;
+
+    # Deny all other PHP file requests
+    location ~ /\.php$ {
+        deny all;
+    }
+
+    # Redirect everything else to the front controller
+    location / {
+        rewrite ^ /index.php last;
+    }
+}
