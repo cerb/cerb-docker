@@ -1,0 +1,46 @@
+{
+	auto_https disable_redirects
+
+    log {
+    	level INFO
+    	output stdout
+    }
+}
+
+:80 {
+	@notACME {
+	    not path /.well-known/acme-challenge/*
+	}
+    redir @notACME https://{$CERB_HOSTNAME}:{$CERB_PORT_SSL}{uri}
+}
+
+{$CERB_HOSTNAME} {
+	header -Server
+
+	request_body {
+		max_size 32MB
+	}
+
+    root * /var/www/html
+
+    @install_disabled {
+    	expression {env.CERB_INSTALL} != "yes"
+    	path_regexp ^/install/index\.php($|/.*)
+    }
+
+    rewrite @install_disabled /index.php
+
+    route {
+    	@rewritePaths {
+		 	not path_regexp ^/(index\.php|ajax\.php|install/index\.php)($|/.*)
+    	}
+
+    	rewrite @rewritePaths /index.php{uri}
+
+    	reverse_proxy * cerb:9000 {
+    		transport fastcgi {
+    			split .php
+    		}
+    	}
+    }
+}
