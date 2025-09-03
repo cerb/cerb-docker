@@ -28,4 +28,4 @@ This container uses PHP FastCGI Process Manager (PHP-FPM) and listens on port 90
 
 You must pair the container with a web server like [Caddy](https://hub.docker.com/_/caddy/) or [nginx](https://hub.docker.com/_/nginx/).
 
-Unless you need a custom build of Cerb, use the pre-built tagged images from Docker Hub: http://hub.docker.com/repository/docker/cerb/cerb
+Unless you need a custom build of Cerb, use the pre-built tagged images from Docker Hub: http://hub.docker.com/r/cerb/cerb
