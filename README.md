@@ -10,9 +10,13 @@ A full-stack Docker Compose installation of Cerb suitable for evaluation, develo
 
 A full-stack Docker Compose installation of Cerb suitable for evaluation, development, and testing. Cerb file storage and the MySQL datadir are stored in local Docker volumes.
 
-## cerb-base
+## _base
 
-The `cerb-base` directory builds the base image from the official `php:fpm` versioned image along with Cerb's required PHP extensions.
+This directory is only used to build custom base images.
+
+### php-fpm
+
+The `_base/php-fpm` directory builds the base image from the official `php:fpm` versioned image along with Cerb's required PHP extensions.
 
 Building this image first drastically speeds up the build times of versioned Cerb images.
 
@@ -20,9 +24,9 @@ This image only needs to be rebuilt when updating the OS, PHP, or extension vers
 
 Most people do not need to build this image locally.
 
-## cerb
+### cerb
 
-The `cerb` directory builds versioned Cerb images on top of `cerb-base`.
+The `_base/cerb` directory builds versioned Cerb images on top of `_base/php-fpm`.
 
 This container uses PHP FastCGI Process Manager (PHP-FPM) and listens on port 9000. Do not expose this port publicly.
 

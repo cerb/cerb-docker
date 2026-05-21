@@ -1,6 +1,6 @@
-# cerb-base
+# base/php-fpm
 
-The `cerb-base` directory builds the base image from the official `php:fpm` versioned image along with Cerb's required PHP extensions.
+The `_base/php-fpm` directory builds the base image from the official `php:fpm` versioned image along with Cerb's required PHP extensions.
 
 Building this image first drastically speeds up the build times of versioned Cerb images.
 
