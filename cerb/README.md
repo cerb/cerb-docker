@@ -1,6 +1,6 @@
 # cerb
 
-The `cerb` directory builds versioned Cerb images on top of `cerb:base-8.3-fpm`.
+The `cerb` directory builds versioned Cerb images on top of `cerb:base-8.5-fpm`.
 
 This container uses PHP FastCGI Process Manager (PHP-FPM) and listens on port 9000. Do not expose this port publicly.
 
