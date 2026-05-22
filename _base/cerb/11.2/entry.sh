@@ -9,4 +9,4 @@ set -e \
 && if [ -z ${CERB_DB_USER} ]; then echo "Error: CERB_DB_USER is required."; exit 1; fi \
 && if [ -z ${CERB_DB_PASS} ]; then echo "Error: CERB_DB_PASS is required."; exit 1; fi \
 && if [ -z ${CERB_INSTALL} ]; then rm -Rf /var/www/html/install; fi \
-&& php-fpm
+&& php-fpm8.5 -F

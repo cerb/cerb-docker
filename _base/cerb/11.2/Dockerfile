@@ -20,6 +20,9 @@ RUN git clone -b ${CERB_BRANCH} --single-branch https://github.com/cerb/cerb-rel
 
 COPY --chmod=0500 entry.sh /
 
+COPY php/cerb.ini /etc/php/8.5/fpm/conf.d/99-cerb.ini
+COPY php/www.conf /etc/php/8.5/fpm/pool.d/www.conf
+
 # Entry replaces ENV variables with envsubst
 COPY cerb/framework.config.template.php /etc/cerb/framework.config.template.php
 
