@@ -27,4 +27,6 @@ RUN apt-get install -y --no-install-recommends \
     php8.5-yaml \
     php8.5-zip
 
+RUN rm -f /usr/bin/pebble
+
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
