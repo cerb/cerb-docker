@@ -24,32 +24,38 @@
 }
 
 {$CERB_HOSTNAME} {
-	header -Server
+    header -Server
 
-	request_body {
-		max_size 32MB
-	}
+    request_body {
+        max_size 64MB
+    }
 
     root * /var/www/html
 
+    # Block install entry point unless CERB_INSTALL=yes
     @install_disabled {
-    	expression {env.CERB_INSTALL} != "yes"
-    	path_regexp ^/install/index\.php($|/.*)
+        expression {env.CERB_INSTALL} != "yes"
+        path /install/index.php /install/index.php/*
     }
-
     rewrite @install_disabled /index.php
 
-    route {
-    	@rewritePaths {
-		 	not path_regexp ^/(index\.php|ajax\.php|install/index\.php)($|/.*)
-    	}
+    # Allowed .php entry points pass straight through (with any PATH_INFO)
+    @phpEntry path /index.php /index.php/* /ajax.php /install/index.php
+    handle @phpEntry {
+        reverse_proxy cerb:9000 {
+            transport fastcgi {
+                split .php
+            }
+        }
+    }
 
-    	rewrite @rewritePaths /index.php{uri}
-
-    	reverse_proxy * cerb:9000 {
-    		transport fastcgi {
-    			split .php
-    		}
-    	}
+    # Everything else gets routed through index.php as PATH_INFO
+    handle {
+        rewrite * /index.php{uri}
+        reverse_proxy cerb:9000 {
+            transport fastcgi {
+                split .php
+            }
+        }
     }
 }
