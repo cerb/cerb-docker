@@ -6,7 +6,7 @@ Cerb file storage and the MySQL data-dir are stored in local Docker volumes.
 
 Edit the `.env` file to configure the web server port and database credentials.
 
-Edit `caddy/Caddyfile` to configure the web server (e.g. SSL).
+Edit `caddy/Caddyfile` to configure the web server. By default Cerb is served over plain HTTP to avoid self-signed certificate warnings during local development. To enable HTTPS, copy `caddy/Caddyfile.ssl.example` over `caddy/Caddyfile` and restart the `caddy` container.
 
 Edit `php-fpm/www.conf` to scale PHP-FPM processes.
 

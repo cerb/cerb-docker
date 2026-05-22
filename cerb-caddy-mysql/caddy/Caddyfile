@@ -1,20 +1,11 @@
 {
-	auto_https disable_redirects
-
     log {
     	level INFO
     	output stdout
     }
 }
 
-:80 {
-	@notACME {
-	    not path /.well-known/acme-challenge/*
-	}
-    redir @notACME https://{$CERB_HOSTNAME}:{$CERB_PORT_SSL}{uri}
-}
-
-{$CERB_HOSTNAME} {
+http://{$CERB_HOSTNAME} {
 	header -Server
 
 	request_body {
