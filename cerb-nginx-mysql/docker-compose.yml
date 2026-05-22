@@ -28,7 +28,7 @@ services:
       CERB_SERVICE_TOKEN_SCOPE: ${CERB_SERVICE_TOKEN_SCOPE:-cron update}
     volumes:
       - storage:/var/www/html/storage
-      - ./php-fpm/www.conf:/usr/local/etc/php-fpm.d/z-cerb.conf
+      #- ./php-fpm/www.conf:/etc/php/8.5/fpm/pool.d/www.conf
   mysql:
     image: mysql:${MYSQL_VERSION:-8.4}
     command: >
