@@ -1,4 +1,4 @@
-ARG CERB_BRANCH="v11.2"
+ARG CERB_BRANCH="v12.0"
 ARG CERB_DIR=/var/www/html
 
 FROM cerb/cerb:base-8.5-fpm
@@ -21,7 +21,12 @@ RUN git clone -b ${CERB_BRANCH} --single-branch https://github.com/cerb/cerb-rel
 COPY --chmod=0500 entry.sh /
 
 COPY php/cerb.ini /etc/php/8.5/fpm/conf.d/99-cerb.ini
-COPY php/www.conf /etc/php/8.5/fpm/pool.d/www.conf
+
+# Ship both pools and let `entry.sh` install exactly one at boot, chosen by
+# CERB_FPM_POOL. The distro package drops its own www.conf in pool.d/, which
+# would otherwise start alongside ours on the same port.
+COPY php/pools-available/ /etc/php/8.5/fpm/pools-available/
+RUN rm -f /etc/php/8.5/fpm/pool.d/*.conf
 
 # Entry replaces ENV variables with envsubst
 COPY cerb/framework.config.template.php /etc/cerb/framework.config.template.php

@@ -13,5 +13,5 @@ See the examples at: https://github.com/cerb/cerb-docker/
 Unless you need a custom build of Cerb, use the pre-built tagged images from Docker Hub: http://hub.docker.com/repository/docker/cerb/cerb
 
 ```bash
-docker build -t cerb:11.2 --build-arg CERB_BRANCH="v11.2" --platform=linux/arm64,linux/amd64 .
+docker build -t cerb:12.0 --build-arg CERB_BRANCH="v12.0" --platform=linux/arm64,linux/amd64 .
 ```
