@@ -8,6 +8,8 @@
 http://{$CERB_HOSTNAME} {
     header -Server
 
+    # Must not be below the pools' post_max_size / upload_max_filesize, or the
+    # proxy rejects at half what the app advertises.
     request_body {
         max_size 64MB
     }
@@ -20,6 +22,34 @@ http://{$CERB_HOSTNAME} {
         path /install/index.php /install/index.php/*
     }
     rewrite @install_disabled /index.php
+
+    # Drains (/queue, /cron) go to the background pool; everything else goes to
+    # the web pool. Both pools listen on 9000 -- the split is by container, not
+    # by port.
+    #
+    # This is matched before the rewrite to /index.php below, because after
+    # that rewrite a drain is indistinguishable from a page load.
+    #
+    # It matches the path only, never the `c=`/`a=` query args: those are
+    # client-supplied, so routing on them would let any caller steer itself
+    # onto the background pool. The path prefix is the canonical routing
+    # dimension.
+    @background path /queue /queue/* /cron /cron/*
+    handle @background {
+        rewrite * /index.php{uri}
+        reverse_proxy {$CERB_FPM_BACKGROUND:cerb-background:9000} {
+            transport fastcgi {
+                split .php
+
+                # Connecting is fast even when the work is slow -- these are
+                # containers on one network -- and a full listen backlog shows
+                # up as a failed dial, so keep this short. The read timeout is
+                # the one that has to be generous: it covers a whole drain.
+                dial_timeout 2s
+                read_timeout 900s
+            }
+        }
+    }
 
     # Allowed .php entry points pass straight through (with any PATH_INFO)
     @phpEntry path /index.php /index.php/* /ajax.php /install/index.php
@@ -38,6 +68,27 @@ http://{$CERB_HOSTNAME} {
             transport fastcgi {
                 split .php
             }
+        }
+    }
+
+    # An outright pool refusal or a dial/read timeout means "come back later"
+    # on a drain path, and stays a real failure on any other path.
+    #
+    # Backpressure is mostly the app's job -- a drain that cannot get a
+    # concurrency slot answers 529 itself. This only translates a refusal that
+    # happens before PHP runs into the same status, so a caller has one rule.
+    #
+    # It tests orig_uri because by the time an error is handled the URI has
+    # been rewritten to /index.php.
+    handle_errors 502 503 504 {
+        @drain expression `{http.request.orig_uri.path}.startsWith("/queue") || {http.request.orig_uri.path}.startsWith("/cron")`
+        handle @drain {
+            header Content-Type application/json
+            header Retry-After 5
+            respond `{"throttled":true,"reason":"No background capacity"}` 529
+        }
+        handle {
+            respond "{err.status_code} {err.status_text}" {err.status_code}
         }
     }
 }

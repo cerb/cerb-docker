@@ -1,5 +1,19 @@
 name: cerb-${CERB_ENV:-docker}
 
+# Both PHP-FPM services run the same image and listen on 9000. The split is by
+# container, not by port -- `entry.sh` installs exactly one pool, chosen by
+# CERB_FPM_POOL -- so everything below except the pool differs by nothing.
+x-cerb-env: &cerb-env
+  CERB_DB_HOST: ${MYSQL_HOST:-mysql}
+  CERB_DB_NAME: ${MYSQL_DATABASE:-cerb}
+  CERB_DB_USER: ${MYSQL_USER:-cerb}
+  CERB_DB_PASS: ${MYSQL_PASSWORD:-s3cr3t}
+  CERB_INSTALL: ${CERB_INSTALL:-}
+  CERB_PROXY_HOST: ${CERB_PROXY_HOST:-}
+  CERB_PROXY_PORT: ${CERB_PROXY_PORT:-}
+  CERB_SERVICE_TOKEN: ${CERB_SERVICE_TOKEN:-s3cr3t}
+  CERB_SERVICE_TOKEN_SCOPE: ${CERB_SERVICE_TOKEN_SCOPE:-cron update}
+
 services:
   caddy:
     image: caddy:${CADDY_VERSION:-latest}
@@ -10,31 +24,50 @@ services:
        - NET_ADMIN
     depends_on:
       - cerb
+      - cerb-background
     environment:
       CERB_HOSTNAME: ${CERB_HOSTNAME:-localhost}
       CERB_INSTALL: ${CERB_INSTALL:-}
       CERB_PORT_SSL: ${CERB_PORT_SSL:-443}
+      # Where /queue and /cron are sent. Point this at `cerb:9000` to collapse
+      # the split back onto a single pool with no other change.
+      CERB_FPM_BACKGROUND: ${CERB_FPM_BACKGROUND:-cerb-background:9000}
     volumes:
       - ./caddy/:/etc/caddy
       - caddy_config:/config
       - caddy_data:/data
+
+  # Page loads and ajax. Sized on CPU and memory.
   cerb:
     image: cerb/cerb:${CERB_VERSION:-latest}
     depends_on:
       - mysql
     environment:
-      CERB_DB_HOST: ${MYSQL_HOST:-mysql}
-      CERB_DB_NAME: ${MYSQL_DATABASE:-cerb}
-      CERB_DB_USER: ${MYSQL_USER:-cerb}
-      CERB_DB_PASS: ${MYSQL_PASSWORD:-s3cr3t}
-      CERB_INSTALL: ${CERB_INSTALL:-}
-      CERB_PROXY_HOST: ${CERB_PROXY_HOST:-}
-      CERB_PROXY_PORT: ${CERB_PROXY_PORT:-}
-      CERB_SERVICE_TOKEN: ${CERB_SERVICE_TOKEN:-s3cr3t}
-      CERB_SERVICE_TOKEN_SCOPE: ${CERB_SERVICE_TOKEN_SCOPE:-cron update}
+      <<: *cerb-env
+      CERB_FPM_POOL: www
+      CERB_WEB_CHILDREN: ${CERB_WEB_CHILDREN:-6}
     volumes:
       - storage:/mnt/storage
-      #- ./php-fpm/www.conf:/etc/php/8.5/fpm/pool.d/www.conf
+
+  # Drains (/queue, /cron) only. One request can hold a child for the length of
+  # an agent turn, up to 900s.
+  #
+  # Sized on memory and DB connections, not cores: a drain worker is a blocking
+  # curl_exec burning ~0 CPU and ~50MB RAM while it waits, plus one MySQL
+  # connection for the whole drain. To add capacity, prefer more replicas:
+  #
+  #   docker compose up --scale cerb-background=3
+  cerb-background:
+    image: cerb/cerb:${CERB_VERSION:-latest}
+    depends_on:
+      - mysql
+    environment:
+      <<: *cerb-env
+      CERB_FPM_POOL: background
+      CERB_BACKGROUND_CHILDREN: ${CERB_BACKGROUND_CHILDREN:-4}
+    volumes:
+      - storage:/mnt/storage
+
   mysql:
     image: mysql:${MYSQL_VERSION:-8.4}
     command: >
