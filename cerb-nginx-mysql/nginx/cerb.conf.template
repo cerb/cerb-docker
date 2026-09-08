@@ -1,3 +1,33 @@
+# Docker's embedded DNS. Required, not optional: `fastcgi_pass` below takes a
+# variable, and without a resolver nginx resolves the upstream once at config
+# load and pins one container's IP. That silently breaks
+# `docker compose up --scale php-fpm-background=N` -- every request lands on
+# replica 1.
+resolver 127.0.0.11 ipv6=off valid=10s;
+
+# Drains (/queue, /cron) go to the background pool; everything else goes to the
+# web pool.
+#
+# This matches $request_uri -- the *original* URI -- because `location /`
+# rewrites everything to /index.php before the PHP location matches, and by
+# then a drain is indistinguishable from a page load.
+#
+# It deliberately does not look at the `c=`/`a=` query args. Those are
+# client-supplied, so routing on them would let any caller steer itself onto
+# the background pool. The path prefix is the canonical routing dimension.
+map $request_uri $cerb_fpm_backend {
+    default                    "php-fpm:9000";
+    "~^/(queue|cron)(/|\?|$)"  "${CERB_FPM_BACKGROUND}";
+}
+
+# Same test, kept as a flag: by the time an error is handled the URI has been
+# rewritten, so this is the only thing left that says whether the request was a
+# drain.
+map $request_uri $cerb_is_background {
+    default                    0;
+    "~^/(queue|cron)(/|\?|$)"  1;
+}
+
 server {
     listen 80;
     server_name ${NGINX_HOST};
@@ -5,20 +35,50 @@ server {
     root /usr/share/nginx/html;
     index index.php;
 
-    client_max_body_size 32m;
+    # Must not be below the pools' post_max_size / upload_max_filesize, or the
+    # proxy rejects at half what the app advertises.
+    client_max_body_size 64m;
     charset utf-8;
 
     # Only allow PHP for two files
     location ~ ^/(index|ajax)\.php$ {
         root /var/www/html;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass   php-fpm:9000;
+        fastcgi_pass   $cerb_fpm_backend;
         fastcgi_index  index.php;
         include        fastcgi_params;
         fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+
+        # Connecting is fast even when the work is slow -- these are containers
+        # on one network. A full listen backlog shows up as a connect timeout
+        # (the kernel drops the SYN), so the 60s default would turn a fast
+        # refusal into a minute of silence. The read timeout is the one that
+        # has to be generous: it covers a full drain.
+        fastcgi_connect_timeout 2s;
+        fastcgi_read_timeout    900s;
+
+        error_page 502 504 = @cerb_upstream_refused;
     }
 
     include /etc/nginx/cerb.install.conf;
+
+    # A refused connection (502) or a connect/read timeout (504) means "come
+    # back later" on a drain path, and stays a real failure on any other path.
+    #
+    # Backpressure is mostly the app's job -- a drain that cannot get a
+    # concurrency slot answers 529 itself. This only translates an outright
+    # pool refusal into the same status, so a caller has one rule.
+    location @cerb_upstream_refused {
+        internal;
+        default_type application/json;
+        add_header Retry-After 5 always;
+
+        if ($cerb_is_background) {
+            return 529 '{"throttled":true,"reason":"No background capacity"}';
+        }
+
+        return 502;
+    }
 
     # Deny all other PHP file requests
     location ~ /\.php$ {
